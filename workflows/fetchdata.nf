@@ -89,7 +89,7 @@ workflow FETCHDATA {
 
         FETCH_FASTQ_FTP (
             ch_reads,
-            false
+            true
         )
         ch_versions = ch_versions.mix(FETCH_FASTQ_FTP.out.versions.first())
     }
