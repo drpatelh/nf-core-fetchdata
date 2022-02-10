@@ -76,7 +76,7 @@ workflow FETCHDATA {
     if (params.input_type == 'giab') {
         Channel
             .from(ch_input)
-            .splitCsv(header:true, sep:'\t')
+            .splitCsv(header:true, sep:'\t', limit:params.max_download_files)
             .map { row -> // FASTQ	FASTQ_MD5	PAIRED_FASTQ	PAIRED_FASTQ_MD5	NIST_SAMPLE_NAME
                 meta = [:]
                 meta.id = row.NIST_SAMPLE_NAME
