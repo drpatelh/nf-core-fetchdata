@@ -54,6 +54,11 @@
                     "type": "string",
                     "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
                     "fa_icon": "fas fa-file-signature"
+                },
+                "skip_fastqc": {
+                    "type": "boolean",
+                    "fa_icon": "fas fa-fast-forward",
+                    "description": "Skip FastQC"
                 }
             }
         },

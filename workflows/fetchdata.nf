@@ -54,6 +54,7 @@ include { INPUT_CHECK } from '../subworkflows/local/input_check'
 //
 // MODULE: Installed directly from nf-core/modules
 //
+include { FASTQC                      } from '../modules/nf-core/modules/fastqc/main'
 include { MULTIQC                     } from '../modules/nf-core/modules/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/modules/custom/dumpsoftwareversions/main'
 
@@ -73,13 +74,16 @@ workflow FETCHDATA {
     //
     // MODULE: Parse Genome in a bottle samplesheet and download data
     //
+    ch_reads = Channel.empty()
     if (params.input_type == 'giab') {
         Channel
             .from(ch_input)
             .splitCsv(header:true, sep:'\t', limit:params.max_download_files)
             .map { row -> // FASTQ	FASTQ_MD5	PAIRED_FASTQ	PAIRED_FASTQ_MD5	NIST_SAMPLE_NAME
                 meta = [:]
-                meta.id = row.NIST_SAMPLE_NAME
+                File id = new File(row.FASTQ)
+                meta.id = id.getName() - '.fastq.gz'
+                meta.name = row.NIST_SAMPLE_NAME
                 meta.single_end = false
                 meta.md5_1 = row.FASTQ_MD5
                 meta.md5_2 = row.PAIRED_FASTQ_MD5
@@ -91,6 +95,7 @@ workflow FETCHDATA {
             ch_reads,
             true
         )
+        ch_reads    = FETCH_FASTQ_FTP.out.fastq
         ch_versions = ch_versions.mix(FETCH_FASTQ_FTP.out.versions.first())
     }
 
@@ -101,6 +106,16 @@ workflow FETCHDATA {
     //     ch_input
     // )
     // ch_versions = ch_versions.mix(INPUT_CHECK.out.versions)
+
+    //
+    // MODULE: Run FastQC
+    //
+    if (!params.skip_fastqc) {
+        FASTQC (
+            ch_reads
+        )
+        ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+    }
 
     //
     // MODULE: Pipeline reporting
@@ -120,6 +135,7 @@ workflow FETCHDATA {
     ch_multiqc_files = ch_multiqc_files.mix(ch_multiqc_custom_config.collect().ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
 
     MULTIQC (
         ch_multiqc_files.collect()
