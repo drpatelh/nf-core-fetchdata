@@ -38,7 +38,8 @@ ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multi
 //
 // MODULE: Loaded from modules/local/
 //
-include { FETCH_FASTQ_FTP } from '../modules/local/fetch_fastq_ftp'
+include { GIAB_TO_SAMPLESHEET } from '../modules/local/giab_to_samplesheet'
+include { FETCH_FASTQ_FTP     } from '../modules/local/fetch_fastq_ftp'
 
 //
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
@@ -76,24 +77,21 @@ workflow FETCHDATA {
     //
     ch_reads = Channel.empty()
     if (params.input_type == 'giab') {
-        Channel
-            .from(ch_input)
-            .splitCsv(header:true, sep:'\t', limit:params.max_download_files)
-            .map { row -> // FASTQ	FASTQ_MD5	PAIRED_FASTQ	PAIRED_FASTQ_MD5	NIST_SAMPLE_NAME
-                meta = [:]
-                File id = new File(row.FASTQ)
-                meta.id = id.getName() - '.fastq.gz'
-                meta.name = row.NIST_SAMPLE_NAME
-                meta.single_end = false
-                meta.md5_1 = row.FASTQ_MD5
-                meta.md5_2 = row.PAIRED_FASTQ_MD5
-                return [ meta, [ row.FASTQ, row.PAIRED_FASTQ ] ]
-            }
-            .set { ch_reads }
+        GIAB_TO_SAMPLESHEET (
+            ch_input
+        )
+        ch_versions = ch_versions.mix(GIAB_TO_SAMPLESHEET.out.versions)
+
+        GIAB_TO_SAMPLESHEET
+            .out
+            .csv
+            .splitCsv(header:true, sep:',', limit:params.max_download_files)
+            .map { row -> [ [ id:row.sample, md5_1:row.md5_1, md5_2:row.md5_2 ], [ row.fastq_1, row.fastq_2 ] ] }
+            .set { ch_read_paths }
 
         FETCH_FASTQ_FTP (
-            ch_reads,
-            true
+            ch_read_paths,
+            false
         )
         ch_reads    = FETCH_FASTQ_FTP.out.fastq
         ch_versions = ch_versions.mix(FETCH_FASTQ_FTP.out.versions.first())
